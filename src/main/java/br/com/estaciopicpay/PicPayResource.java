@@ -5,9 +5,9 @@ import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 
-import java.util.List;
+import java.math.BigDecimal;
 
-@Path("/users")
+@Path("/api")
 @Produces(MediaType.APPLICATION_JSON)
 @Consumes(MediaType.APPLICATION_JSON)
 public class PicPayResource {
@@ -16,49 +16,39 @@ public class PicPayResource {
     UserService userService;
 
     @POST
-    @Consumes(MediaType.APPLICATION_JSON)
-    public Response createUser(User user) {
-        System.out.println("Received User: " + user);
-        userService.createUser(user);
-        return Response.status(Response.Status.CREATED).entity(user).build();
+    @Path("/usuarios")
+    public Response cadastrarUsuario(Usuario usuario) {
+        Usuario usuarioCadastrado = userService.cadastrarUsuario(usuario);
+        return Response.status(Response.Status.CREATED).entity(usuarioCadastrado).build();
     }
 
     @GET
-    @Path("/{id}")
-    public Response findUserById(@PathParam("id") Long id) {
-        User user = userService.findUserById(id);
-        if (user == null) {
-            return Response.status(Response.Status.NOT_FOUND).build();
-        }
-        return Response.ok(user).build();
+    @Path("/usuarios/{id}")
+    public Response encontrarUsuario(@PathParam("id") Long id) {
+        return userService.encontrarUsuario(id)
+                .map(usuario -> Response.ok(usuario).build())
+                .orElse(Response.status(Response.Status.NOT_FOUND).build());
     }
 
-    @GET
-    public List<User> listAllUsers() {
-        return userService.listAllUsers();
+    @POST
+    @Path("/transferir")
+    public Response realizarTransferencia(TransferenciaDTO transferencia) {
+        boolean sucesso = userService.realizarTransferencia(transferencia.getDeId(), transferencia.getParaId(), transferencia.getValor());
+        if (sucesso) {
+            return Response.ok().build();
+        }
+        return Response.status(Response.Status.BAD_REQUEST).entity("Transferência falhou").build();
     }
 
-    @PUT
-    @Path("/{id}")
-    public Response updateUser(@PathParam("id") Long id, User updatedUser) {
-        User user = userService.findUserById(id);
-        if (user == null) {
-            return Response.status(Response.Status.NOT_FOUND).build();
-        }
-        user.setName(updatedUser.getName());
-        user.setEmail(updatedUser.getEmail());
-        userService.updateUser(user);
-        return Response.ok(user).build();
-    }
+    @POST
+    @Path("/receber-pagamento/{lojistaId}")
+    public Response receberPagamento(@PathParam("lojistaId") Long lojistaId, RecebimentoDTO recebimentoDTO) {
+        boolean sucesso = userService.receberPagamento(lojistaId, recebimentoDTO.getValor());
 
-    @DELETE
-    @Path("/{id}")
-    public Response deleteUser(@PathParam("id") Long id) {
-        User user = userService.findUserById(id);
-        if (user == null) {
-            return Response.status(Response.Status.NOT_FOUND).build();
+        if (sucesso) {
+            return Response.ok().build();
         }
-        userService.deleteUser(id);
-        return Response.noContent().build();
+
+        return Response.status(Response.Status.BAD_REQUEST).entity("Recebimento falhou").build();
     }
 }

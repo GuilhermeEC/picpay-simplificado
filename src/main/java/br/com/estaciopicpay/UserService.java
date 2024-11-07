@@ -1,40 +1,68 @@
 package br.com.estaciopicpay;
 
+import br.com.estaciopicpay.repository.LojistaRepository;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.persistence.EntityManager;
 import jakarta.transaction.Transactional;
 
-import java.util.List;
+import java.math.BigDecimal;
+import java.util.Optional;
 
 @ApplicationScoped
 public class UserService {
     @Inject
+    LojistaRepository lojistaRepository;
+
+    @Inject
     EntityManager entityManager;
+
     @Transactional
-    public void createUser(User user) {
-        entityManager.persist(user);
-    }
-
-    public User findUserById(Long id) {
-        return entityManager.find(User.class, id);
-    }
-
-    public List<User> listAllUsers() {
-        return entityManager.createQuery("SELECT u FROM User u", User.class).getResultList();
+    public Usuario cadastrarUsuario(Usuario usuario){
+        entityManager.persist(usuario);
+        return usuario;
     }
 
     @Transactional
-    public void updateUser(User user) {
-        entityManager.merge(user);
+    public Optional<Usuario> encontrarUsuario(Long id) {
+        return Optional.ofNullable(entityManager.find(Usuario.class, id));
     }
 
     @Transactional
-    public void deleteUser(Long id) {
-        User user = entityManager.find(User.class, id);
-        if (user != null) {
-            entityManager.remove(user);
+    public boolean realizarTransferencia(Long deId, Long paraId, BigDecimal valor) {
+        Usuario de = entityManager.find(Usuario.class, deId);
+        Usuario para = entityManager.find(Usuario.class, paraId);
+
+        if (de == null || para == null) {
+            return false; // Usuário não encontrado
         }
+
+        if (!de.podeTransferir()) {
+            return false; // O usuário não pode realizar transferências
+        }
+
+        // Lógica para realizar a transferência
+        if (de.getSaldo().compareTo(valor) >= 0) { // Use compareTo para comparação
+            de.setSaldo(de.getSaldo().subtract(valor)); // Use subtract para BigDecimal
+            para.setSaldo(para.getSaldo().add(valor)); // Use add para BigDecimal
+            entityManager.merge(de);
+            entityManager.merge(para);
+            return true; // Transferência realizada com sucesso
+        }
+
+        return false; // Saldo insuficiente
+    }
+
+    @Transactional
+    public boolean receberPagamento(Long lojistaId, BigDecimal valor) {
+        Optional<Lojista> lojistaOpt = lojistaRepository.findById(lojistaId);
+        if (lojistaOpt.isPresent() && valor.compareTo(BigDecimal.ZERO) > 0) {
+            Lojista lojista = lojistaOpt.get();
+            lojista.setSaldo(lojista.getSaldo().add(valor)); // Usando add para somar BigDecimal
+            lojistaRepository.persist(lojista);
+            return true;
+        }
+        return false;
     }
 }
 
